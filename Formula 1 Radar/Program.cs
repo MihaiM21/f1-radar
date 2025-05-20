@@ -1,20 +1,32 @@
 ﻿using System.Threading.Tasks;
 using F1R.core.data_acquisition;
+using F1R.core.simulation;
+using Microsoft.AspNet.SignalR;
+using Microsoft.Owin.Hosting;
+using Microsoft.Owin.Cors;
+using Owin;
 
-class Program
+namespace F1R
 {
-    public static int nr = 0;
-    public static void Main(string[] args)
+    class Program
     {
-        if(nr == 0)
-            DataAcq.LiveDataAcq();
-        else
+        public static int nr = 1;
+        public static async Task Main(string[] args)
         {
-            DataAcq.SimulationDataAcq();
-        }
+            var signalRServer = new SignalRServer();
+            //signalRServer.Start();
         
+            if(nr == 0)
+                DataAcq.LiveDataAcq();
+            else
+            {
+                await DataAcq.SimulationDataAcq();
+            }
+        
+        }
     }
 }
+
 
 
 
