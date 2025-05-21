@@ -13,8 +13,7 @@ namespace F1R
         public static int nr = 1;
         public static async Task Main(string[] args)
         {
-            var signalRServer = new SignalRServer();
-            //signalRServer.Start();
+            
         
             if(nr == 0)
                 DataAcq.LiveDataAcq();
