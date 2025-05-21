@@ -11,6 +11,7 @@ using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using F1R.core.data_processing;
 
 namespace F1R.core.data_acquisition
 {
@@ -136,6 +137,12 @@ namespace F1R.core.data_acquisition
                     {
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         Console.WriteLine($"Received: {message}");
+                        string decodedData = decoder.decodeMessage(message);
+                        //Console.WriteLine("Decoded: " + decodedData);
+                        string prettyData = data_pretty.separate(decodedData);
+                        Console.WriteLine("Pretty: " + prettyData);
+                        string separateEntries = data_pretty.separateEntries(decodedData);
+                        Console.WriteLine("Separate: " + separateEntries);
                     }
                 }
             }
