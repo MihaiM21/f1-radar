@@ -34,6 +34,7 @@ public class data_pretty
       {
           try
           {
+              // This method takes a string that is already separated and separates it even more for simpler use.
               // Parse the input JSON string
               var document = JsonDocument.Parse(inputData);
               var positions = document.RootElement.GetProperty("Position");
