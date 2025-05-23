@@ -20,7 +20,7 @@ namespace F1R.core.data_acquisition
         static CancellationTokenSource quitTokenSource = new CancellationTokenSource();
 
         
-        public static async void LiveDataAcq()
+        public static async Task LiveDataAcq()
         {
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
@@ -30,22 +30,34 @@ namespace F1R.core.data_acquisition
 
             Console.WriteLine("Starting");
 
-            // Getting the log file ready
-            var logFilePath = "livetiming_log.txt";
-            using var logWriter = new StreamWriter(logFilePath, append: true, encoding: Encoding.UTF8)
-            {
-                AutoFlush = true
-            };
+            var logFilePath = "monaco2_livetiming_log.txt";
+            var decryptedFilePath = "monaco2_livetiming_decrypted.txt";
+            var decryptedFilePathSeparate = "monaco2_livetiming_decrypted_separated.txt";
 
-            // URL for SignalR (F1)
-            using var connection = new HubConnection("https://livetiming.formula1.com/signalr");
+            using var logWriter = new StreamWriter(logFilePath, append: true, encoding: Encoding.UTF8) { AutoFlush = true };
+            using var decryptedWriter = new StreamWriter(decryptedFilePath, append: true, encoding: Encoding.UTF8) { AutoFlush = true };
+            using var decryptedWriterSeparate = new StreamWriter(decryptedFilePathSeparate, append: true, encoding: Encoding.UTF8) { AutoFlush = true };
+
+            var connection = new HubConnection("https://livetiming.formula1.com/signalr");
             connection.CookieContainer = new CookieContainer();
 
-            // Writing in console and in the file the data received
             connection.Received += async data =>
             {
-                Console.WriteLine("Recv: " + data);
-                await logWriter.WriteLineAsync($"{data}");
+                try
+                {
+                    Console.WriteLine(data);
+                    await logWriter.WriteLineAsync($"{data}");
+                    string decodedData = decoder.decodeMessage(data); // May throw
+                    string prettyData = data_pretty.separate(decodedData);
+                    string separateEntries = data_pretty.separateEntries(decodedData);
+                    await decryptedWriter.WriteLineAsync($"{prettyData}");
+                    await decryptedWriterSeparate.WriteLineAsync($"{separateEntries}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Error in data processing] {ex.Message}");
+                    await logWriter.WriteLineAsync($"[{DateTime.UtcNow:O}] Error in Received handler: {ex}");
+                }
             };
 
             connection.StateChanged += change =>
@@ -79,33 +91,49 @@ namespace F1R.core.data_acquisition
             };
 
             var streamingHub = connection.CreateHubProxy("Streaming");
-            await connection.Start();
 
-            // Adding the interest Channels
-            await streamingHub.Invoke("Subscribe", new List<string> {
-                "Heartbeat",
-                "CarData.z",
-                "Position.z",
-                "ExtrapolatedClock",
-                "TopThree",
-                "RcmSeries",
-                "TimingStats",
-                "TimingAppData",
-                "WeatherData",
-                "TrackStatus",
-                "SessionStatus",
-                "DriverList",
-                "RaceControlMessages",
-                "SessionInfo",
-                "SessionData",
-                "LapCount",
-                "TimingData",
-                "TeamRadio",
-                "PitLaneTimeCollection",
-                "ChampionshipPrediction"
-            });
+            // Keep retrying until connected or user cancels
+            while (!quitTokenSource.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    await connection.Start();
+                    Console.WriteLine("Connected to SignalR.");
+                    logWriter.WriteLine($"[{DateTime.UtcNow:O}] Connected to SignalR.");
+                    break; // Exit loop if connected
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Failed to connect. Retrying in 5 seconds...");
+                    logWriter.WriteLine($"[{DateTime.UtcNow:O}] Failed to connect: {ex.Message}");
+                    await Task.Delay(5000, quitTokenSource.Token); // Wait before retry
+                }
+            }
 
-            quitTokenSource.Token.WaitHandle.WaitOne();
+            // If cancel token triggered during wait, stop execution
+            if (quitTokenSource.Token.IsCancellationRequested)
+            {
+                Console.WriteLine("Cancelled before connection was established.");
+                return;
+            }
+
+            // Add interest Channels
+            try
+            {
+                await streamingHub.Invoke("Subscribe", new List<string> {
+                    "Heartbeat", "CarData.z", "Position.z", "ExtrapolatedClock", "TopThree", "RcmSeries",
+                    "TimingStats", "TimingAppData", "WeatherData", "TrackStatus", "SessionStatus",
+                    "DriverList", "RaceControlMessages", "SessionInfo", "SessionData", "LapCount",
+                    "TimingData", "TeamRadio", "PitLaneTimeCollection", "ChampionshipPrediction"
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Subscribe error] {ex.Message}");
+                await logWriter.WriteLineAsync($"[{DateTime.UtcNow:O}] Error subscribing: {ex}");
+            }
+
+            quitTokenSource.Token.WaitHandle.WaitOne(); // Wait for cancel signal
             connection.Stop();
 
             Console.WriteLine("Quitting");
