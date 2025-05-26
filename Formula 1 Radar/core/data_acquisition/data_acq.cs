@@ -12,13 +12,16 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using F1R.core.data_processing;
+using F1R.core.storage_cache;
 
 namespace F1R.core.data_acquisition
 {
     public class DataAcq
     {
         static CancellationTokenSource quitTokenSource = new CancellationTokenSource();
-
+        private static readonly object fileLock = new object();
+        // Define an event to broadcast the data
+        //public static event Action<string> OnDataReceived;
         
         public static async Task LiveDataAcq()
         {
@@ -30,9 +33,9 @@ namespace F1R.core.data_acquisition
 
             Console.WriteLine("Starting");
 
-            var logFilePath = "monaco2_livetiming_log.txt";
-            var decryptedFilePath = "monaco2_livetiming_decrypted.txt";
-            var decryptedFilePathSeparate = "monaco2_livetiming_decrypted_separated.txt";
+            var logFilePath = "practice1_livetiming_log.txt";
+            var decryptedFilePath = "practice1_livetiming_decrypted.txt";
+            var decryptedFilePathSeparate = "practice1_livetiming_decrypted_separated.txt";
 
             using var logWriter = new StreamWriter(logFilePath, append: true, encoding: Encoding.UTF8) { AutoFlush = true };
             using var decryptedWriter = new StreamWriter(decryptedFilePath, append: true, encoding: Encoding.UTF8) { AutoFlush = true };
@@ -45,13 +48,24 @@ namespace F1R.core.data_acquisition
             {
                 try
                 {
-                    Console.WriteLine(data);
-                    await logWriter.WriteLineAsync($"{data}");
-                    string decodedData = decoder.decodeMessage(data); // May throw
+                    //OnDataReceived?.Invoke(data);
+                    // await logWriter.WriteLineAsync($"{data}");
+                    // string decodedData = decoder.decodeMessage(data); // May throw
+                    // string prettyData = data_pretty.separate(decodedData);
+                    // string separateEntries = data_pretty.separateEntries(decodedData);
+                    // await decryptedWriter.WriteLineAsync($"{prettyData}");
+                    // await decryptedWriterSeparate.WriteLineAsync($"{separateEntries}");
+                    string decodedData = decoder.decodeMessage(data);
                     string prettyData = data_pretty.separate(decodedData);
                     string separateEntries = data_pretty.separateEntries(decodedData);
-                    await decryptedWriter.WriteLineAsync($"{prettyData}");
-                    await decryptedWriterSeparate.WriteLineAsync($"{separateEntries}");
+                    Console.WriteLine(decodedData);
+                    lock (fileLock)
+                    {
+                        
+                        logWriter.WriteLine(data);
+                        decryptedWriter.WriteLine(prettyData);
+                        decryptedWriterSeparate.WriteLine(separateEntries);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -164,13 +178,12 @@ namespace F1R.core.data_acquisition
                     else
                     {
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Console.WriteLine($"Received: {message}");
-                        string decodedData = decoder.decodeMessage(message);
-                        //Console.WriteLine("Decoded: " + decodedData);
-                        string prettyData = data_pretty.separate(decodedData);
-                        Console.WriteLine("Pretty: " + prettyData);
-                        string separateEntries = data_pretty.separateEntries(decodedData);
-                        Console.WriteLine("Separate: " + separateEntries);
+                        // Process data
+                        data_process.processData(message);
+                        
+                        // UPDATE DRIVER FUNCTION HERE
+                        //Console.WriteLine($"TEST: {DriversManager.GetAllDrivers()}");
+
                     }
                 }
             }
@@ -182,6 +195,8 @@ namespace F1R.core.data_acquisition
             {
                 Console.WriteLine("Other error: " + ex.Message);
             }           
+            
+            
             
             // Console.CancelKeyPress += (sender, eventArgs) =>
             // {
