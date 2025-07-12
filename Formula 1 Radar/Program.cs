@@ -11,8 +11,6 @@ namespace F1R
 {
     class Program
     {
-        public static int nr = 0;
-       
         public static async Task Main(string[] args)
         {
             try
