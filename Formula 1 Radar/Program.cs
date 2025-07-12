@@ -24,15 +24,6 @@ namespace F1R
                 Console.WriteLine(e);
                 throw;
             }
-               
-            
-        
-            if(nr == 0)
-                await DataAcq.LiveDataAcq();
-            else
-            {
-                await DataAcq.SimulationDataAcq();
-            }
         
         }
     }
